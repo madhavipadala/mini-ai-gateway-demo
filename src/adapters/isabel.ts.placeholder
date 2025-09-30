@@ -1,0 +1,15 @@
+// src/adapters/isabel.ts
+import type { Adapter } from './index.js';
+
+export const isabelAdapter: Adapter = {
+  name: 'isabel',
+  async diagnose(_input) {
+    if (!process.env.ISABEL_KEY) {
+      // Return a friendly error until creds are added
+      throw new Error('isabel_not_configured');
+    }
+    // TODO: call Isabel API here and map to DiagnoseOutput
+    return { differential: [], triage: { level: 'moderate', why: 'stub' }, recommended_tests: [], red_flags: [] } as any;
+  }
+};
+

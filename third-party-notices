@@ -1,0 +1,6 @@
+npm i -D license-checker
+npx license-checker --production --summary
+# Create a notices file:
+npx license-checker --production --json > THIRD_PARTY_NOTICES.json
+# (optional pretty MD)
+npx license-report --only=prod --output=markdown > THIRD_PARTY_NOTICES.md

@@ -1,0 +1,41 @@
+npm pkg set license="MIT"
+
+{
+  "name": "mini-ehr-ai-gateway-stable",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node --enable-source-maps dist/server.js",
+    "build": "tsc -p tsconfig.json",
+    "postbuild": "mkdir -p dist/schema && cp src/schema/ai_output_schema.json dist/schema/"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0",
+    "pino": "^9.3.2",
+    "pino-http": "^10.5.0",
+    "rate-limiter-flexible": "^4.0.0",
+    "undici": "^6.19.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^22.5.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.4.5"
+  }
+  {
+  "scripts": {
+    "build": "tsc -p tsconfig.json && mkdir -p dist/schema && cp src/schema/ai_output_schema.json dist/schema/",
+    "start": "node --enable-source-maps dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "lint": "echo \"(optional)\""
+  }
+}

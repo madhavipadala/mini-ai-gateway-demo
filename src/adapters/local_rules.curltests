@@ -1,0 +1,20 @@
+# Pneumonia-ish
+curl -sS -X POST 'http://127.0.0.1:8888/ai/diagnose?provider=local_rules' \
+  -H 'Content-Type: application/json' \
+  -d '{"deidentified":true,"input":{"chief_complaint":"fever, cough, pleuritic chest pain","demographics":{"age":40}}}' | jq .
+
+# UTI vs Pyelo
+curl -sS -X POST 'http://127.0.0.1:8888/ai/diagnose?provider=local_rules' \
+  -H 'Content-Type: application/json' \
+  -d '{"deidentified":true,"input":{"chief_complaint":"burning urination, fever and flank pain","demographics":{"age":32}}}' | jq .
+
+# Strep-like
+curl -sS -X POST 'http://127.0.0.1:8888/ai/diagnose?provider=local_rules' \
+  -H 'Content-Type: application/json' \
+  -d '{"deidentified":true,"input":{"chief_complaint":"sore throat with fever, no cough","demographics":{"age":21}}}' | jq .
+
+# Migraine vs red-flag headache
+curl -sS -X POST 'http://127.0.0.1:8888/ai/diagnose?provider=local_rules' \
+  -H 'Content-Type: application/json' \
+  -d '{"deidentified":true,"input":{"chief_complaint":"thunderclap headache, worst of life","demographics":{"age":45}}}' | jq .
+

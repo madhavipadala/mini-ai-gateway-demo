@@ -1,0 +1,33 @@
+// src/adapters/index.ts
+import { localRulesAdapter } from './local_rules.js';
+import { openaiAdapter } from './openai.js';
+import { isabelAdapter } from './isabel.js';
+
+
+export type ProviderName = 'local_rules' | 'openai' | 'isabel';
+
+export interface DiagnoseInput {
+  chief_complaint: string;
+  demographics?: { age?: number; sex?: string };
+  // ...add fields you already use
+}
+export interface DiagnoseOutput {
+  engine?: { name: string; version?: string };
+  differential: { condition: string; confidence?: number; why?: string }[];
+  triage: { level: 'low'|'moderate'|'high'; why: string };
+  recommended_tests: string[];
+  red_flags: string[];
+  provenance?: { generated_at: string };
+}
+
+export interface Adapter {
+  name: ProviderName;
+  diagnose(input: DiagnoseInput, opts?: { model?: string }): Promise<DiagnoseOutput>;
+}
+
+export const adapters: Record<ProviderName, Adapter> = {
+  local_rules: localRulesAdapter,
+  openai: openaiAdapter,
+  isabel: isabelAdapter,
+};
+

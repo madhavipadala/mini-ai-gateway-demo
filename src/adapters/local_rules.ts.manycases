@@ -1,0 +1,217 @@
+// src/adapters/local_rules.ts
+// Prototype-only heuristic rules to simulate AI triage offline.
+// NOT FOR CLINICAL USE.
+
+import type { Adapter, DiagnoseInput, DiagnoseOutput } from './index.js';
+
+function norm(input: DiagnoseInput): { txt: string; age?: number; sex?: string } {
+  const parts: string[] = [];
+  if (input.chief_complaint) parts.push(input.chief_complaint);
+  if ((input as any).symptoms) parts.push(String((input as any).symptoms));
+  if ((input as any).notes) parts.push(String((input as any).notes));
+  const txt = parts.join(' ').toLowerCase();
+  return { txt, age: input.demographics?.age, sex: input.demographics?.sex };
+}
+
+function mk(
+  diff: { condition: string; confidence?: number; why?: string }[],
+  triage: { level: 'low' | 'moderate' | 'high'; why: string },
+  tests: string[],
+  redFlags: string[]
+): DiagnoseOutput {
+  return {
+    engine: { name: 'local_rules', version: '0.2' },
+    differential: diff,
+    triage,
+    recommended_tests: tests,
+    red_flags: redFlags,
+    provenance: { generated_at: new Date().toISOString() }
+  };
+}
+
+export const localRulesAdapter: Adapter = {
+  name: 'local_rules',
+  async diagnose(input: DiagnoseInput): Promise<DiagnoseOutput> {
+    const { txt, age, sex } = norm(input);
+
+    // ---- HIGH-RISK FIRST ----
+
+    // Anaphylaxis
+    if (/(anaphylaxis|throat tight|tongue swell|lip swell|hives|wheez|stridor)/.test(txt)) {
+      return mk(
+        [
+          { condition: 'Anaphylaxis', confidence: 0.7, why: 'airway/respiratory or mucosal involvement' },
+          { condition: 'Severe allergic reaction', confidence: 0.2 }
+        ],
+        { level: 'high', why: 'possible airway compromise / systemic reaction' },
+        ['Airway & O2 sat', 'IV access', 'Consider Epi (protocol)'],
+        ['airway swelling', 'respiratory distress', 'hypotension']
+      );
+    }
+
+    // Stroke/TIA
+    if (/(facial droop|slurred speech|aphasia|one[- ]sided|hemiparesis|sudden weakness|vision loss|ataxia)/.test(txt)) {
+      return mk(
+        [
+          { condition: 'Acute ischemic stroke', confidence: 0.6, why: 'focal neuro deficits' },
+          { condition: 'TIA', confidence: 0.2 }
+        ],
+        { level: 'high', why: 'acute focal neurological signs' },
+        ['Glucose', 'Non-contrast head CT', 'ECG'],
+        ['focal deficits', 'sudden onset']
+      );
+    }
+
+    // ACS / Cardiac chest pain
+    const chestish = /(chest|sternum|pressure|tightness)/.test(txt);
+    const ischemicHints = /(diaphoresis|sweating|exertion|radiat(e|ing)|left arm|jaw)/.test(txt);
+    if (chestish && (ischemicHints || /pain/.test(txt))) {
+      return mk(
+        [
+          { condition: 'Unstable angina', confidence: 0.55, why: 'ischemic-sounding chest pain' },
+          { condition: 'Myocardial infarction', confidence: 0.25, why: 'consider ACS' },
+          { condition: 'Musculoskeletal chest pain', confidence: 0.1 }
+        ],
+        { level: 'high', why: 'possible ACS' },
+        ['ECG', 'Troponin'],
+        ['ischemic-sounding chest pain']
+      );
+    }
+
+    // Severe headache red flags (thunderclap, meningitis signs)
+    const thunder = /(thunderclap|worst headache)/.test(txt);
+    const meningitic = /(neck stiff|photophobia|fever)/.test(txt) && /headache/.test(txt);
+    if (thunder || meningitic) {
+      return mk(
+        [
+          { condition: thunder ? 'Subarachnoid hemorrhage' : 'Meningitis', confidence: 0.5, why: thunder ? 'sudden severe headache' : 'fever + neck stiffness' },
+          { condition: 'Other secondary headache', confidence: 0.2 }
+        ],
+        { level: 'high', why: thunder ? 'sudden severe headache' : 'infectious red flags' },
+        thunder ? ['CT head ± LP'] : ['CBC', 'Blood culture', 'Lumbar puncture (per protocol)'],
+        thunder ? ['sudden “worst headache”'] : ['fever + neck stiffness']
+      );
+    }
+
+    // Pyelonephritis (UTI + flank pain/fever)
+    const uti = /(dysuria|burning urinat|frequency|urgency)/.test(txt);
+    const flank = /(flank pain|cv[a] tenderness|back pain)/.test(txt);
+    if (uti && (flank || /fever/.test(txt))) {
+      return mk(
+        [
+          { condition: 'Pyelonephritis', confidence: 0.6, why: 'UTI symptoms + flank pain/fever' },
+          { condition: 'Complicated UTI', confidence: 0.2 }
+        ],
+        { level: 'moderate', why: 'possible upper tract involvement' },
+        ['Urinalysis', 'Urine culture', 'CBC'],
+        []
+      );
+    }
+
+    // Appendicitis (RLQ pain + fever/nausea)
+    const rlq = /(rlq|right lower quadrant|mcburney)/.test(txt) || (/abdominal pain/.test(txt) && /(right lower)/.test(txt));
+    if (rlq && (/(fever|nausea|vomit)/.test(txt))) {
+      return mk(
+        [
+          { condition: 'Appendicitis', confidence: 0.6, why: 'RLQ pain with fever/nausea' },
+          { condition: 'Gastroenteritis', confidence: 0.15 }
+        ],
+        { level: 'moderate', why: 'localized abdominal pain + systemic signs' },
+        ['CBC', 'CRP', 'Abdominal US (or CT per protocol)'],
+        []
+      );
+    }
+
+    // Asthma exacerbation (wheeze + dyspnea)
+    if (/(wheez|shortness of breath|dyspnea|can\'t speak|cant speak)/.test(txt)) {
+      const severe = /(can\'t speak|cant speak|accessory|cyanosis)/.test(txt);
+      return mk(
+        [
+          { condition: 'Asthma exacerbation', confidence: 0.6, why: 'wheeze/dyspnea' },
+          { condition: 'COPD exacerbation', confidence: 0.15 }
+        ],
+        { level: severe ? 'high' : 'moderate', why: severe ? 'respiratory distress' : 'wheeze with dyspnea' },
+        ['O2 sat', 'Peak flow (if available)'],
+        severe ? ['respiratory distress'] : []
+      );
+    }
+
+    // Pneumonia vs Viral URI (fever+cough +/- pleuritic pain)
+    const cough = /cough/.test(txt);
+    const fever = /fever|pyrexia/.test(txt);
+    const pleuritic = /(pleuritic|chest pain with breathing)/.test(txt);
+    if (fever && cough && pleuritic) {
+      return mk(
+        [
+          { condition: 'Community-acquired pneumonia', confidence: 0.55, why: 'fever + cough + pleuritic pain' },
+          { condition: 'Viral bronchitis', confidence: 0.2 }
+        ],
+        { level: 'moderate', why: 'possible pneumonia' },
+        ['CXR', 'CBC'],
+        []
+      );
+    }
+    if (fever && cough) {
+      const anosmia = /(loss of smell|anosmia)/.test(txt);
+      return mk(
+        [
+          { condition: anosmia ? 'COVID-like illness' : 'Viral URI', confidence: 0.5, why: anosmia ? 'anosmia present' : 'short duration, no red flags' },
+          { condition: 'Viral bronchitis', confidence: 0.2 }
+        ],
+        { level: 'low', why: 'no red flags' },
+        anosmia ? ['COVID test'] : ['Symptomatic care'],
+        []
+      );
+    }
+
+    // Strep throat (Centor-ish: sore throat + fever, absence of cough helps)
+    if (/sore throat|odynophagia|pharyngitis/.test(txt)) {
+      const noCough = !/cough/.test(txt);
+      return mk(
+        [
+          { condition: 'Streptococcal pharyngitis', confidence: noCough ? 0.5 : 0.3, why: noCough ? 'sore throat + fever without cough' : 'sore throat ± cough' },
+          { condition: 'Viral pharyngitis', confidence: noCough ? 0.3 : 0.5 }
+        ],
+        { level: 'low', why: 'stable vital concerns not indicated in text' },
+        ['Rapid strep (if indicated)'],
+        []
+      );
+    }
+
+    // Uncomplicated UTI
+    if (uti) {
+      return mk(
+        [
+          { condition: 'Uncomplicated UTI', confidence: 0.6, why: 'dysuria/frequency' },
+          { condition: 'Vaginitis/urethritis', confidence: 0.15 }
+        ],
+        { level: 'low', why: 'no systemic red flags detected' },
+        ['Urinalysis', 'Urine culture (if recurrent/complicated)'],
+        []
+      );
+    }
+
+    // Gastroenteritis / dehydration (vomiting & diarrhea)
+    if (/(vomit|diarrhea)/.test(txt)) {
+      const dehydration = /(dry mouth|poor turgor|reduced urination)/.test(txt);
+      return mk(
+        [
+          { condition: 'Gastroenteritis', confidence: 0.6, why: 'GI symptoms' },
+          { condition: 'Dehydration', confidence: 0.2 }
+        ],
+        { level: dehydration ? 'moderate' : 'low', why: dehydration ? 'possible dehydration' : 'no red flags detected' },
+        dehydration ? ['BMP'] : ['Oral rehydration'],
+        dehydration ? ['reduced urine output'] : []
+      );
+    }
+
+    // Default fallback — nonspecific viral syndrome
+    return mk(
+      [{ condition: 'Nonspecific viral syndrome', confidence: 0.4, why: 'no red flags recognized in text' }],
+      { level: 'low', why: 'no red flags' },
+      ['Symptomatic care'],
+      []
+    );
+  }
+};
+

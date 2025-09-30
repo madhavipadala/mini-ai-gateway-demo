@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "required": ["patient_id","engine","differential","triage","provenance"],
+  "properties": {
+    "patient_id": { "type": "string" },
+    "engine": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "differential": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["condition","rationale"],
+        "properties": {
+          "condition": { "type": "string" },
+          "confidence": { "type": ["number","null"], "minimum": 0, "maximum": 1 },
+          "codes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["system","code"],
+              "properties": { "system": { "type": "string" }, "code": { "type": "string" } }
+            }
+          },
+          "rationale": { "type": "string" },
+          "evidence_refs": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "red_flags": { "type": "array", "items": { "type": "string" } },
+    "recommended_tests": { "type": "array", "items": { "type": "string" } },
+    "triage": {
+      "type": "object",
+      "required": ["level"],
+      "properties": {
+        "level": { "type": "string", "enum": ["emergent","urgent","routine","self-care"] },
+        "why": { "type": "string" }
+      }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "provenance": {
+      "type": "object",
+      "required": ["generated_at"],
+      "properties": {
+        "generated_at": { "type": "string" },
+        "temperature": { "type": ["number","null"] },
+        "prompt_profile": { "type": ["string","null"] }
+      }
+    }
+  }
+}
